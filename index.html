@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="OpenLayers OSM Map with React and TypeScript" />
+    <meta name="keywords" content="React, TypeScript, OpenLayers, OSM, Map, GIS" />
+    <meta name="author" content="OpenLayers React Map" />
+    
+    <!-- OpenGraph Meta Tags -->
+    <meta property="og:title" content="OpenLayers React Map" />
+    <meta property="og:description" content="Interactive map built with React, TypeScript, and OpenLayers" />
+    <meta property="og:type" content="website" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="OpenLayers Map" />
+    
+    <title>OpenLayers React Map - Interactive OSM Map</title>
+    
+    <!-- Preload critical resources -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="dns-prefetch" href="https://tile.openstreetmap.org" />
+    
+    <!-- Favicon -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    
+    <style>
+      /* Critical CSS for initial page load */
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        background-color: #f5f7fa;
+        color: #333;
+      }
+      
+      /* Loading spinner styles */
+      .loading-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #f5f7fa;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+      }
+      
+      .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #e3e3e3;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      .loading-text {
+        margin-top: 20px;
+        font-size: 18px;
+        color: #667eea;
+        font-weight: 600;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      /* Hide loading container when React app loads */
+      #root:not(:empty) + .loading-container {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- React App Root -->
+    <div id="root"></div>
+    
+    <!-- Loading Screen (shown while React app is loading) -->
+    <div class="loading-container">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">지도를 로드하는 중...</div>
+    </div>
+    
+    <!-- Error Fallback (shown if JavaScript fails to load) -->
+    <noscript>
+      <div style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #f5f7fa;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        padding: 20px;
+        box-sizing: border-box;
+      ">
+        <h1 style="color: #e74c3c; margin-bottom: 20px;">
+          🚫 JavaScript가 비활성화되어 있습니다
+        </h1>
+        <p style="font-size: 18px; color: #7f8c8d; max-width: 600px; line-height: 1.6;">
+          이 웹 애플리케이션을 사용하려면 JavaScript를 활성화해야 합니다.<br>
+          브라우저 설정에서 JavaScript를 활성화한 후 페이지를 새로고침해주세요.
+        </p>
+        <div style="margin-top: 30px;">
+          <p style="color: #2c3e50; font-weight: bold;">지원 기술:</p>
+          <ul style="color: #7f8c8d; text-align: left; display: inline-block;">
+            <li>React 18 + TypeScript</li>
+            <li>OpenLayers 8</li>
+            <li>OpenStreetMap (OSM)</li>
+            <li>Vite Build Tool</li>
+          </ul>
+        </div>
+      </div>
+    </noscript>
+    
+    <!-- Main Application Script -->
+    <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Service Worker Registration (for PWA features) -->
+    <script>
+      // Register service worker for offline functionality
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered: ', registration);
+            })
+            .catch((registrationError) => {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+      
+      // Hide loading screen when DOM is ready
+      document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+          const loadingContainer = document.querySelector('.loading-container');
+          if (loadingContainer && document.getElementById('root').hasChildNodes()) {
+            loadingContainer.style.display = 'none';
+          }
+        }, 2000);
+      });
+    </script>
+  </body>
+</html>
