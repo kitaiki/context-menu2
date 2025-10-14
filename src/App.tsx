@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import MapComponent from './components/MapComponent';
 import ModalPage from './pages/ModalPage';
+import Lane from './pages/Lane';
 import './App.css';
 
 const App: React.FC = () => {
@@ -20,6 +21,7 @@ const App: React.FC = () => {
           </div>
         } />
         <Route path="/modal" element={<ModalPage />} />
+        <Route path='/lane' element={<Lane/>} />
       </Routes>
     </Router>
   );
