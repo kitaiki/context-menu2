@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface LaneInfo {
   bits: number[];
   angle: number;
+  outLinkId: number;
 }
 
 // 각도별 방향 이미지 매핑 (12시 방향부터 30도씩)
@@ -17,38 +18,49 @@ const getDirectionImage = (angle: number): string => {
 };
 
 const Lane: React.FC = () => {
+  const [selectedOutLinkId, setSelectedOutLinkId] = useState<number | null>(null);
+
   // 차선 정보 데이터
   const laneInfo: LaneInfo[] = [
-    { bits: [0, 1, 1, 1, 0], angle: 1 },
-    { bits: [1, 0, 0, 0, 0], angle: 10 },
-    { bits: [1, 0, 0, 0, 0], angle: 7 },
-    { bits: [0, 0, 0, 0, 1], angle: 4 },
-    { bits: [0, 0, 0, 0, 1], angle: 1 }
+    { bits: [0, 1, 1, 1, 0], angle: 1, outLinkId: 1111 },
+    { bits: [1, 0, 0, 0, 0], angle: 10, outLinkId: 2222 },
+    { bits: [1, 0, 0, 0, 0], angle: 7, outLinkId: 3333 },
+    { bits: [0, 0, 0, 0, 1], angle: 4, outLinkId: 4444 },
+    { bits: [0, 0, 0, 0, 1], angle: 1, outLinkId: 5555 }
   ];
 
-  // 차선별 방향 정보 계산
-  const getLaneDirections = (): { laneNumber: number; directions: string[] }[] => {
-    const laneDirections: { [key: number]: string[] } = {};
+  // 차선별 방향 정보 계산 (outLinkId 포함)
+  const getLaneDirections = (): { laneNumber: number; directions: string[]; outLinkIds: number[] }[] => {
+    const laneDirections: { [key: number]: { directions: string[]; outLinkIds: number[] } } = {};
 
     laneInfo.forEach((info) => {
       info.bits.forEach((bit, index) => {
         if (bit === 1) {
           const laneNumber = index + 1;
           if (!laneDirections[laneNumber]) {
-            laneDirections[laneNumber] = [];
+            laneDirections[laneNumber] = { directions: [], outLinkIds: [] };
           }
           const direction = getDirectionImage(info.angle);
-          if (!laneDirections[laneNumber].includes(direction)) {
-            laneDirections[laneNumber].push(direction);
+          if (!laneDirections[laneNumber].directions.includes(direction)) {
+            laneDirections[laneNumber].directions.push(direction);
+          }
+          if (!laneDirections[laneNumber].outLinkIds.includes(info.outLinkId)) {
+            laneDirections[laneNumber].outLinkIds.push(info.outLinkId);
           }
         }
       });
     });
 
-    return Object.entries(laneDirections).map(([lane, dirs]) => ({
+    return Object.entries(laneDirections).map(([lane, data]) => ({
       laneNumber: parseInt(lane),
-      directions: dirs
+      directions: data.directions,
+      outLinkIds: data.outLinkIds
     }));
+  };
+
+  // 특정 outLinkId가 포함된 차선인지 확인
+  const isLaneHighlighted = (outLinkIds: number[]): boolean => {
+    return selectedOutLinkId !== null && outLinkIds.includes(selectedOutLinkId);
   };
 
   const laneDirections = getLaneDirections();
@@ -86,7 +98,52 @@ const Lane: React.FC = () => {
       background: '#2c3e50',
       padding: '20px'
     }}>
-      <h1 style={{ color: 'white', marginBottom: '30px' }}>차선 안내</h1>
+      <h1 style={{ color: 'white', marginBottom: '20px' }}>차선 안내</h1>
+
+      {/* outLinkId 선택 */}
+      <div style={{
+        marginBottom: '20px',
+        background: 'rgba(255, 255, 255, 0.95)',
+        padding: '15px',
+        borderRadius: '8px',
+        display: 'flex',
+        gap: '10px',
+        alignItems: 'center',
+        flexWrap: 'wrap'
+      }}>
+        <span style={{ fontWeight: 'bold', color: '#2c3e50' }}>OutLinkId 선택:</span>
+        <button
+          onClick={() => setSelectedOutLinkId(null)}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '4px',
+            border: selectedOutLinkId === null ? '2px solid #3498db' : '1px solid #ccc',
+            background: selectedOutLinkId === null ? '#3498db' : 'white',
+            color: selectedOutLinkId === null ? 'white' : '#2c3e50',
+            cursor: 'pointer',
+            fontWeight: selectedOutLinkId === null ? 'bold' : 'normal'
+          }}
+        >
+          전체
+        </button>
+        {laneInfo.map((info) => (
+          <button
+            key={info.outLinkId}
+            onClick={() => setSelectedOutLinkId(info.outLinkId)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '4px',
+              border: selectedOutLinkId === info.outLinkId ? '2px solid #ffc107' : '1px solid #ccc',
+              background: selectedOutLinkId === info.outLinkId ? '#ffc107' : 'white',
+              color: selectedOutLinkId === info.outLinkId ? 'white' : '#2c3e50',
+              cursor: 'pointer',
+              fontWeight: selectedOutLinkId === info.outLinkId ? 'bold' : 'normal'
+            }}
+          >
+            {info.outLinkId}
+          </button>
+        ))}
+      </div>
 
       {/* 차선 표시 */}
       <div style={{
@@ -97,20 +154,25 @@ const Lane: React.FC = () => {
         borderRadius: '10px',
         boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
       }}>
-        {laneDirections.map((lane) => (
-          <div
-            key={lane.laneNumber}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              padding: '20px',
-              background: '#ecf0f1',
-              borderRadius: '8px',
-              minWidth: '120px',
-              border: '3px solid #34495e'
-            }}
-          >
+        {laneDirections.map((lane) => {
+          const isHighlighted = isLaneHighlighted(lane.outLinkIds);
+          return (
+            <div
+              key={lane.laneNumber}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '20px',
+                background: isHighlighted ? '#fff3cd' : '#ecf0f1',
+                borderRadius: '8px',
+                minWidth: '120px',
+                border: isHighlighted ? '4px solid #ffc107' : '3px solid #34495e',
+                boxShadow: isHighlighted ? '0 0 20px rgba(255, 193, 7, 0.5)' : 'none',
+                transition: 'all 0.3s ease',
+                transform: isHighlighted ? 'scale(1.05)' : 'scale(1)'
+              }}
+            >
             {/* 차선 번호 */}
             <div style={{
               fontSize: '18px',
@@ -162,7 +224,8 @@ const Lane: React.FC = () => {
               {lane.directions.map(dir => getDirectionName(dir)).join(' + ')}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* 차선 정보 패널 */}
@@ -176,14 +239,20 @@ const Lane: React.FC = () => {
       }}>
         <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50' }}>원본 데이터</h3>
         {laneInfo.map((lane, index) => (
-          <div key={index} style={{
-            marginBottom: '10px',
-            fontSize: '14px',
-            padding: '8px',
-            background: '#ecf0f1',
-            borderRadius: '4px'
-          }}>
-            <strong>구간 {index + 1}:</strong> bits=[{lane.bits.join(', ')}], angle={lane.angle}
+          <div
+            key={index}
+            style={{
+              marginBottom: '10px',
+              fontSize: '14px',
+              padding: '8px',
+              background: selectedOutLinkId === lane.outLinkId ? '#fff3cd' : '#ecf0f1',
+              borderRadius: '4px',
+              border: selectedOutLinkId === lane.outLinkId ? '2px solid #ffc107' : '1px solid transparent',
+              cursor: 'pointer'
+            }}
+            onClick={() => setSelectedOutLinkId(lane.outLinkId)}
+          >
+            <strong>구간 {index + 1}:</strong> bits=[{lane.bits.join(', ')}], angle={lane.angle}, outLinkId={lane.outLinkId}
             <span style={{ marginLeft: '10px', color: '#7f8c8d' }}>
               (방향: {getDirectionName(getDirectionImage(lane.angle))})
             </span>

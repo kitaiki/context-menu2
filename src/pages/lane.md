@@ -2,20 +2,25 @@
 laneInfo = [
     {
         bits: [0,1,1,1,0],
-        angle: 1
+        angle: 1,
+        outLinkId: 1111
     },
     {
         bits: [1,0,0,0,0],
-        angle: 10
+        angle: 10,
+        outLinkId: 2222
     }, {
         bits: [1,0,0,0,0],
-        angle: 7
+        angle: 7,
+        outLinkId: 3333
     }, {
         bits: [0,0,0,0,1],
-        angle: 4
+        angle: 4,
+        outLinkId: 4444
     }, {
         bits: [0,0,0,0,1],
-        angle: 1
+        angle: 1, 
+        outLinkId: 5555
     }
 ]
 
@@ -39,3 +44,5 @@ laneInfo = [
     - bits: [0,0,0,0,1], angle: 4 => 5차선, 우회전
     - bits: [0,0,0,0,1], angle: 1 => 5차선, 직진
     => 결과 5차선 직진 + 우회전
+
+6. outLinkId를 select하면 laneInfo에서 해당 outLinkId값이 있는 차선 하이라이트
