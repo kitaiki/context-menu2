@@ -11,14 +11,14 @@ interface LaneInfo {
 const Lane: React.FC = () => {
   const [selectedOutLinkId, setSelectedOutLinkId] = useState<number | null>(null);
 
-  // 차선 정보 데이터
-  const laneInfo: LaneInfo[] = [
-    { bits: [0, 1, 1, 1, 0], angle: 1, outLinkId: 1111 },
-    { bits: [1, 0, 0, 0, 0], angle: 10, outLinkId: 2222 },
-    { bits: [1, 0, 0, 0, 0], angle: 7, outLinkId: 3333 },
-    { bits: [0, 0, 0, 0, 1], angle: 4, outLinkId: 4444 },
-    { bits: [0, 0, 0, 0, 1], angle: 1, outLinkId: 5555 }
-  ];
+  // 차선 정보 데이터 (상태로 관리)
+  const [laneInfo, setLaneInfo] = useState<LaneInfo[]>([
+    { bits: [0, 1, 1, 1, 0, 0, 0, 0, 0, 0], angle: 1, outLinkId: 1111 },
+    { bits: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0], angle: 10, outLinkId: 2222 },
+    { bits: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0], angle: 7, outLinkId: 3333 },
+    { bits: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0], angle: 4, outLinkId: 4444 },
+    { bits: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0], angle: 1, outLinkId: 5555 }
+  ]);
 
   // 차선별 방향 정보 계산 (각도별로 그룹핑)
   const getLaneDirections = () => {
@@ -53,6 +53,49 @@ const Lane: React.FC = () => {
   // 특정 outLinkId가 포함된 차선인지 확인
   const isLaneHighlighted = (outLinkIds: number[]): boolean => {
     return selectedOutLinkId !== null && outLinkIds.includes(selectedOutLinkId);
+  };
+
+  // 차선 추가 기능
+  const handleAddLane = () => {
+    // 우측 차선이 있는지 확인 (angle 3, 4, 5)
+    const hasRightLane = laneInfo.some(info =>
+      info.angle === 3 || info.angle === 4 || info.angle === 5
+    );
+
+    setLaneInfo(prevLaneInfo => {
+      return prevLaneInfo.map(info => {
+        const newBits = [...info.bits];
+        const isRightLane = info.angle === 3 || info.angle === 4 || info.angle === 5;
+
+        if (hasRightLane && isRightLane) {
+          // 우측 차선인 경우: 오른쪽으로 한 칸 이동 (shift right)
+          const oneIndices: number[] = [];
+          newBits.forEach((bit, idx) => {
+            if (bit === 1) oneIndices.push(idx);
+          });
+
+          // 기존 1을 모두 0으로
+          for (let i = 0; i < newBits.length; i++) {
+            newBits[i] = 0;
+          }
+
+          // 한 칸 오른쪽으로 이동
+          oneIndices.forEach(idx => {
+            if (idx + 1 < newBits.length) {
+              newBits[idx + 1] = 1;
+            }
+          });
+        } else if (!isRightLane) {
+          // 우측 차선이 아닌 경우: 오른쪽에 차선 추가
+          const lastOneIndex = newBits.lastIndexOf(1);
+          if (lastOneIndex >= 0 && lastOneIndex < newBits.length - 1) {
+            newBits[lastOneIndex + 1] = 1;
+          }
+        }
+
+        return { ...info, bits: newBits };
+      });
+    });
   };
 
   return (
@@ -200,7 +243,10 @@ const Lane: React.FC = () => {
 
               {/* +버튼 영역 - 80px */}
               <div className="w-20 flex items-center justify-center bg-white border-l border-gray-300">
-                <button className="w-14 h-14 rounded-full bg-purple-500 hover:bg-purple-600 transition flex items-center justify-center group">
+                <button
+                  onClick={handleAddLane}
+                  className="w-14 h-14 rounded-full bg-purple-500 hover:bg-purple-600 transition flex items-center justify-center group"
+                >
                   <PlusOutlined className="text-white text-2xl" />
                 </button>
               </div>
@@ -236,8 +282,9 @@ const Lane: React.FC = () => {
           </div>
         </div>
 
-        {/* 디버깅: OutLinkId 선택 */}
-        <div className="p-4 bg-gray-50 border-t border-gray-300">
+        {/* 디버깅 영역 */}
+        <div className="p-4 bg-gray-50 border-t border-gray-300 space-y-3">
+          {/* OutLinkId 선택 */}
           <div className="flex flex-wrap gap-2 items-center">
             <span className="text-xs font-semibold text-gray-700">디버깅 - OutLinkId 선택:</span>
             <button
@@ -263,6 +310,14 @@ const Lane: React.FC = () => {
                 {outLinkId}
               </button>
             ))}
+          </div>
+
+          {/* laneInfo 데이터 표시 */}
+          <div className="bg-white p-3 rounded border border-gray-300">
+            <h4 className="text-xs font-bold text-gray-800 mb-2">현재 laneInfo 데이터:</h4>
+            <pre className="text-xs text-gray-700 overflow-x-auto whitespace-pre-wrap font-mono">
+              {JSON.stringify(laneInfo, null, 2)}
+            </pre>
           </div>
         </div>
       </div>
