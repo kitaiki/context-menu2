@@ -1,21 +1,12 @@
 import React, { useState } from 'react';
+import { Select } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 
 interface LaneInfo {
   bits: number[];
   angle: number;
   outLinkId: number;
 }
-
-// 각도별 방향 이미지 매핑 (12시 방향부터 30도씩)
-const getDirectionImage = (angle: number): string => {
-  const directions: { [key: number]: string } = {
-    1: 'straight',    // 직진
-    4: 'right',       // 우회전
-    7: 'uturn',       // 유턴
-    10: 'left'        // 좌회전
-  };
-  return directions[angle] || 'straight';
-};
 
 const Lane: React.FC = () => {
   const [selectedOutLinkId, setSelectedOutLinkId] = useState<number | null>(null);
@@ -29,243 +20,250 @@ const Lane: React.FC = () => {
     { bits: [0, 0, 0, 0, 1], angle: 1, outLinkId: 5555 }
   ];
 
-  // 차선별 방향 정보 계산 (outLinkId 포함)
-  const getLaneDirections = (): { laneNumber: number; directions: string[]; outLinkIds: number[] }[] => {
-    const laneDirections: { [key: number]: { directions: string[]; outLinkIds: number[] } } = {};
+  // 차선별 방향 정보 계산 (각도별로 그룹핑)
+  const getLaneDirections = () => {
+    const laneMap: {
+      [key: number]: { angles: number[]; outLinkIds: number[] };
+    } = {};
 
     laneInfo.forEach((info) => {
       info.bits.forEach((bit, index) => {
         if (bit === 1) {
           const laneNumber = index + 1;
-          if (!laneDirections[laneNumber]) {
-            laneDirections[laneNumber] = { directions: [], outLinkIds: [] };
+          if (!laneMap[laneNumber]) {
+            laneMap[laneNumber] = { angles: [], outLinkIds: [] };
           }
-          const direction = getDirectionImage(info.angle);
-          if (!laneDirections[laneNumber].directions.includes(direction)) {
-            laneDirections[laneNumber].directions.push(direction);
-          }
-          if (!laneDirections[laneNumber].outLinkIds.includes(info.outLinkId)) {
-            laneDirections[laneNumber].outLinkIds.push(info.outLinkId);
-          }
+          laneMap[laneNumber].angles.push(info.angle);
+          laneMap[laneNumber].outLinkIds.push(info.outLinkId);
         }
       });
     });
 
-    return Object.entries(laneDirections).map(([lane, data]) => ({
-      laneNumber: parseInt(lane),
-      directions: data.directions,
-      outLinkIds: data.outLinkIds
-    }));
+    return Object.entries(laneMap)
+      .map(([lane, data]) => ({
+        laneNumber: parseInt(lane),
+        angles: data.angles,
+        outLinkIds: data.outLinkIds
+      }))
+      .sort((a, b) => a.laneNumber - b.laneNumber);
   };
+
+  const laneDirections = getLaneDirections();
 
   // 특정 outLinkId가 포함된 차선인지 확인
   const isLaneHighlighted = (outLinkIds: number[]): boolean => {
     return selectedOutLinkId !== null && outLinkIds.includes(selectedOutLinkId);
   };
 
-  const laneDirections = getLaneDirections();
-
-  // 방향별 아이콘 매핑
-  const getDirectionIcon = (direction: string): string => {
-    const icons: { [key: string]: string } = {
-      'left': '←',
-      'straight': '↑',
-      'right': '→',
-      'uturn': '↶'
-    };
-    return icons[direction] || '↑';
-  };
-
-  // 방향별 한글명
-  const getDirectionName = (direction: string): string => {
-    const names: { [key: string]: string } = {
-      'left': '좌회전',
-      'straight': '직진',
-      'right': '우회전',
-      'uturn': '유턴'
-    };
-    return names[direction] || '직진';
-  };
-
   return (
-    <div style={{
-      width: '100%',
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      background: '#2c3e50',
-      padding: '20px'
-    }}>
-      <h1 style={{ color: 'white', marginBottom: '20px' }}>차선 안내</h1>
+    <div className="w-full min-h-screen bg-gray-50 flex items-center justify-center p-8">
+      {/* 차선정보 카드 - 전체 600px x 460px */}
+      <div className="w-[600px] bg-white rounded-lg shadow-lg border border-gray-300">
 
-      {/* outLinkId 선택 */}
-      <div style={{
-        marginBottom: '20px',
-        background: 'rgba(255, 255, 255, 0.95)',
-        padding: '15px',
-        borderRadius: '8px',
-        display: 'flex',
-        gap: '10px',
-        alignItems: 'center',
-        flexWrap: 'wrap'
-      }}>
-        <span style={{ fontWeight: 'bold', color: '#2c3e50' }}>OutLinkId 선택:</span>
-        <button
-          onClick={() => setSelectedOutLinkId(null)}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '4px',
-            border: selectedOutLinkId === null ? '2px solid #3498db' : '1px solid #ccc',
-            background: selectedOutLinkId === null ? '#3498db' : 'white',
-            color: selectedOutLinkId === null ? 'white' : '#2c3e50',
-            cursor: 'pointer',
-            fontWeight: selectedOutLinkId === null ? 'bold' : 'normal'
-          }}
-        >
-          전체
-        </button>
-        {laneInfo.map((info) => (
-          <button
-            key={info.outLinkId}
-            onClick={() => setSelectedOutLinkId(info.outLinkId)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '4px',
-              border: selectedOutLinkId === info.outLinkId ? '2px solid #ffc107' : '1px solid #ccc',
-              background: selectedOutLinkId === info.outLinkId ? '#ffc107' : 'white',
-              color: selectedOutLinkId === info.outLinkId ? 'white' : '#2c3e50',
-              cursor: 'pointer',
-              fontWeight: selectedOutLinkId === info.outLinkId ? 'bold' : 'normal'
-            }}
-          >
-            {info.outLinkId}
-          </button>
-        ))}
-      </div>
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-gray-300 rounded-t-lg">
+          <h2 className="text-lg font-bold text-gray-800">차선정보</h2>
+          <div className="w-8 h-8 bg-blue-500 rounded flex items-center justify-center">
+            <span className="text-white text-xl">🏠</span>
+          </div>
+        </div>
 
-      {/* 차선 표시 */}
-      <div style={{
-        display: 'flex',
-        gap: '20px',
-        background: 'white',
-        padding: '40px',
-        borderRadius: '10px',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-      }}>
-        {laneDirections.map((lane) => {
-          const isHighlighted = isLaneHighlighted(lane.outLinkIds);
-          return (
-            <div
-              key={lane.laneNumber}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                padding: '20px',
-                background: isHighlighted ? '#fff3cd' : '#ecf0f1',
-                borderRadius: '8px',
-                minWidth: '120px',
-                border: isHighlighted ? '4px solid #ffc107' : '3px solid #34495e',
-                boxShadow: isHighlighted ? '0 0 20px rgba(255, 193, 7, 0.5)' : 'none',
-                transition: 'all 0.3s ease',
-                transform: isHighlighted ? 'scale(1.05)' : 'scale(1)'
-              }}
-            >
-            {/* 차선 번호 */}
-            <div style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#2c3e50'
-            }}>
-              {lane.laneNumber}차선
+        {/* 메인 컨텐츠 영역 - 2단 레이아웃 */}
+        <div className="flex h-[360px]">
+
+          {/* 왼쪽: 레인 설정 영역 - 200px */}
+          <div className="w-[200px] border-r border-gray-300 p-4 flex flex-col">
+
+            {/* IN LINK ID */}
+            <div className="mb-4">
+              <label className="text-xs font-semibold text-gray-700 mb-1 block">IN LINK ID</label>
+              <Select
+                defaultValue="1111"
+                className="w-full"
+                options={[
+                  { value: '1111', label: '1111' },
+                  { value: '2222', label: '2222' },
+                  { value: '3333', label: '3333' },
+                  { value: '4444', label: '4444' },
+                  { value: '5555', label: '5555' },
+                ]}
+              />
             </div>
 
-            {/* 방향 아이콘들 (겹쳐서 표시) */}
-            <div style={{
-              position: 'relative',
-              width: '80px',
-              height: '80px',
-              marginBottom: '15px'
-            }}>
-              {lane.directions.map((direction, index) => (
-                <div
-                  key={direction}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '60px',
-                    color: index === 0 ? '#e74c3c' : '#3498db',
-                    opacity: index === 0 ? 1 : 0.7,
-                    transform: `translate(${index * 10}px, ${index * 10}px)`,
-                    textShadow: '2px 2px 4px rgba(0,0,0,0.3)'
-                  }}
-                >
-                  {getDirectionIcon(direction)}
+            {/* 안내코드 */}
+            <div className="mb-4">
+              <label className="text-xs font-semibold text-gray-700 mb-1 block">안내코드</label>
+              <Select
+                defaultValue="안내없음"
+                className="w-full"
+                options={[
+                  { value: '안내없음', label: '안내없음' }
+                ]}
+              />
+            </div>
+
+            {/* 본선차선수 */}
+            <div className="mb-4">
+              <label className="text-xs font-semibold text-gray-700 mb-1 block">본선차선수</label>
+              <input
+                type="number"
+                defaultValue={2}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm"
+              />
+            </div>
+
+            {/* 부가차선 */}
+            <div className="mb-6">
+              <label className="text-xs font-semibold text-gray-700 mb-1 block">부가차선</label>
+              <div className="text-sm text-gray-600">좌측: 1 우측: 1</div>
+            </div>
+
+            {/* 정방향/역방향 라디오 버튼 */}
+            <div className="flex gap-4 mt-auto mb-4">
+              <label className="flex items-center gap-2">
+                <input type="radio" name="direction" defaultChecked className="w-4 h-4" />
+                <span className="text-sm text-gray-700">정방향</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" name="direction" className="w-4 h-4" />
+                <span className="text-sm text-blue-600 font-semibold">역방향</span>
+              </label>
+            </div>
+          </div>
+
+          {/* 오른쪽: 부가차선 영역 - 400px */}
+          <div className="w-[400px] flex flex-col">
+
+            {/* 부가차선 헤더 */}
+            <div className="px-4 py-2 bg-gray-50 border-b border-gray-300">
+              <h3 className="text-sm font-semibold text-gray-700">부가차선</h3>
+            </div>
+
+            {/* 차선 표시 영역 */}
+            <div className="flex flex-1">
+
+              {/* 차선 그리기 영역 - 스크롤 가능 */}
+              <div className="flex-1 overflow-x-auto">
+                {/* 체크박스 영역 */}
+                <div className="flex min-w-max px-2 py-2 border-b border-gray-200">
+                  {laneDirections.map((lane) => (
+                    <div key={`checkbox-${lane.laneNumber}`} className="w-20 flex items-center justify-center border-r border-gray-200 last:border-r-0">
+                      <label className="flex items-center gap-1">
+                        <input type="checkbox" className="w-4 h-4" />
+                      </label>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* 방향 텍스트 */}
-            <div style={{
-              fontSize: '14px',
-              color: '#2c3e50',
-              textAlign: 'center',
-              fontWeight: '500'
-            }}>
-              {lane.directions.map(dir => getDirectionName(dir)).join(' + ')}
+                {/* 차선 영역 */}
+                <div className="flex h-[calc(100%-40px)] min-w-max px-2">
+                  {laneDirections.map((lane) => {
+                    const isHighlighted = isLaneHighlighted(lane.outLinkIds);
+                    return (
+                      <div
+                        key={lane.laneNumber}
+                        className={`w-20 flex flex-col items-center border-r border-gray-200 last:border-r-0 transition-all cursor-pointer ${
+                          isHighlighted ? 'bg-purple-50' : 'bg-gray-600'
+                        }`}
+                        onClick={() => {
+                          if (lane.outLinkIds.length > 0) {
+                            setSelectedOutLinkId(lane.outLinkIds[0]);
+                          }
+                        }}
+                      >
+                        {/* 차선 번호 레이블 */}
+                        <div className="w-full py-1 text-center bg-gray-700 border-b border-gray-500">
+                          <span className="text-xs font-bold text-white">{lane.laneNumber}차선</span>
+                        </div>
+
+                        {/* 화살표 이미지 영역 */}
+                        <div className="flex-1 flex items-center justify-center relative w-full px-2 py-4">
+                          {lane.angles.map((angle, index) => (
+                            <img
+                              key={`${lane.laneNumber}-${angle}-${index}`}
+                              src={`/src/arrows/${angle}.png`}
+                              alt={`angle-${angle}`}
+                              className="absolute w-12 h-12 object-contain"
+                              style={{
+                                zIndex: lane.angles.length - index,
+                                opacity: index === 0 ? 1 : 0.8,
+                                filter: 'brightness(0) invert(1)'
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* +버튼 영역 - 80px */}
+              <div className="w-20 flex items-center justify-center bg-white border-l border-gray-300">
+                <button className="w-14 h-14 rounded-full bg-purple-500 hover:bg-purple-600 transition flex items-center justify-center group">
+                  <PlusOutlined className="text-white text-2xl" />
+                </button>
+              </div>
             </div>
           </div>
-          );
-        })}
-      </div>
+        </div>
 
-      {/* 차선 정보 패널 */}
-      <div style={{
-        marginTop: '30px',
-        background: 'rgba(255, 255, 255, 0.95)',
-        padding: '20px',
-        borderRadius: '8px',
-        maxWidth: '600px',
-        width: '100%'
-      }}>
-        <h3 style={{ margin: '0 0 15px 0', color: '#2c3e50' }}>원본 데이터</h3>
-        {laneInfo.map((lane, index) => (
-          <div
-            key={index}
-            style={{
-              marginBottom: '10px',
-              fontSize: '14px',
-              padding: '8px',
-              background: selectedOutLinkId === lane.outLinkId ? '#fff3cd' : '#ecf0f1',
-              borderRadius: '4px',
-              border: selectedOutLinkId === lane.outLinkId ? '2px solid #ffc107' : '1px solid transparent',
-              cursor: 'pointer'
-            }}
-            onClick={() => setSelectedOutLinkId(lane.outLinkId)}
-          >
-            <strong>구간 {index + 1}:</strong> bits=[{lane.bits.join(', ')}], angle={lane.angle}, outLinkId={lane.outLinkId}
-            <span style={{ marginLeft: '10px', color: '#7f8c8d' }}>
-              (방향: {getDirectionName(getDirectionImage(lane.angle))})
-            </span>
+        {/* 하단 정보 영역 */}
+        <div className="flex border-t border-gray-300 text-xs">
+          {/* 왼쪽 */}
+          <div className="w-[200px] p-3 border-r border-gray-300 space-y-1">
+            <div className="text-gray-600">
+              <span className="font-semibold">입력인원:</span> 홍길동
+            </div>
+            <div className="text-gray-600">
+              <span className="font-semibold">수정인원:</span> 홍길동
+            </div>
           </div>
-        ))}
+          {/* 중앙 */}
+          <div className="flex-1 p-3 border-r border-gray-300 space-y-1">
+            <div className="text-gray-600">
+              <span className="font-semibold">입력시간:</span> 2025.10.16 12:20:11
+            </div>
+            <div className="text-gray-600">
+              <span className="font-semibold">수정인원:</span> 2025.10.16 12:20:11
+            </div>
+          </div>
+          {/* 오른쪽 */}
+          <div className="w-20 flex items-center justify-center">
+            <button className="px-4 py-1.5 bg-white border border-gray-400 rounded text-sm hover:bg-gray-50 transition">
+              저장
+            </button>
+          </div>
+        </div>
 
-        <div style={{ marginTop: '20px', padding: '10px', background: '#d5dbdb', borderRadius: '4px' }}>
-          <strong>참고:</strong>
-          <ul style={{ margin: '10px 0 0 20px', fontSize: '13px' }}>
-            <li>angle 1~12: 12시 방향부터 30도씩 회전</li>
-            <li>bits: [좌2, 좌1, 중앙, 우1, 우2] 차선 위치</li>
-            <li>같은 차선의 여러 방향은 겹쳐서 표시됨</li>
-          </ul>
+        {/* 디버깅: OutLinkId 선택 */}
+        <div className="p-4 bg-gray-50 border-t border-gray-300">
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-semibold text-gray-700">디버깅 - OutLinkId 선택:</span>
+            <button
+              onClick={() => setSelectedOutLinkId(null)}
+              className={`px-3 py-1 text-xs rounded ${
+                selectedOutLinkId === null
+                  ? 'bg-blue-500 text-white font-bold'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              전체
+            </button>
+            {[...new Set(laneInfo.map(info => info.outLinkId))].map((outLinkId) => (
+              <button
+                key={outLinkId}
+                onClick={() => setSelectedOutLinkId(outLinkId)}
+                className={`px-3 py-1 text-xs rounded ${
+                  selectedOutLinkId === outLinkId
+                    ? 'bg-purple-500 text-white font-bold'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {outLinkId}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

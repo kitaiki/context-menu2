@@ -10,7 +10,9 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.1.0",
     "@turf/turf": "^6.5.0",
+    "antd": "^5.27.5",
     "ol": "^8.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
