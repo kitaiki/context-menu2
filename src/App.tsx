@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import MapComponent from './components/MapComponent';
 import Lane from './pages/Lane';
+import Test from './pages/Test';
 import './App.css';
 
 const App: React.FC = () => {
@@ -20,6 +21,8 @@ const App: React.FC = () => {
           </div>
         } />
         <Route path='/lane' element={<Lane/>} />
+        <Route path='/test' element={<Test/>} />
+
       </Routes>
     </Router>
   );
