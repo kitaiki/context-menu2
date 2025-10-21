@@ -1,12 +1,94 @@
 import React, { useState } from 'react';
 import { Select } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface LaneInfo {
   bits: number[];
   angle: number;
   outLinkId: number;
 }
+
+interface LaneDirection {
+  laneNumber: number;
+  angles: number[];
+  outLinkIds: number[];
+}
+
+// Sortable Lane Item 컴포넌트
+const SortableLaneItem: React.FC<{ lane: LaneDirection; selectedOutLinkId: number | null; setSelectedOutLinkId: (id: number | null) => void }> = ({ lane, selectedOutLinkId, setSelectedOutLinkId }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: lane.laneNumber });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const isHighlighted = selectedOutLinkId !== null && lane.outLinkIds.includes(selectedOutLinkId);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`w-20 flex flex-col items-center border-r border-gray-200 last:border-r-0 cursor-grab active:cursor-grabbing ${
+        isHighlighted ? 'bg-purple-50' : 'bg-gray-600'
+      } ${isDragging ? 'z-50' : ''}`}
+      onClick={() => {
+        if (lane.outLinkIds.length > 0) {
+          setSelectedOutLinkId(lane.outLinkIds[0]);
+        }
+      }}
+    >
+      {/* 차선 번호 레이블 */}
+      <div className="w-full py-1 text-center bg-gray-700 border-b border-gray-500">
+        <span className="text-xs font-bold text-white">{lane.laneNumber}차선</span>
+      </div>
+
+      {/* 화살표 이미지 영역 */}
+      <div className="flex-1 flex items-center justify-center relative w-full px-2 py-4">
+        {lane.angles.map((angle, index) => (
+          <img
+            key={`${lane.laneNumber}-${angle}-${index}`}
+            src={`/src/arrows/${angle}.png`}
+            alt={`angle-${angle}`}
+            className="absolute w-12 h-12 object-contain"
+            style={{
+              zIndex: lane.angles.length - index,
+              opacity: index === 0 ? 1 : 0.8,
+              filter: 'brightness(0) invert(1)'
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const Lane: React.FC = () => {
   const [selectedOutLinkId, setSelectedOutLinkId] = useState<number | null>(null);
@@ -48,11 +130,33 @@ const Lane: React.FC = () => {
       .sort((a, b) => a.laneNumber - b.laneNumber);
   };
 
-  const laneDirections = getLaneDirections();
+  const [laneDirections, setLaneDirections] = useState<LaneDirection[]>([]);
 
-  // 특정 outLinkId가 포함된 차선인지 확인
-  const isLaneHighlighted = (outLinkIds: number[]): boolean => {
-    return selectedOutLinkId !== null && outLinkIds.includes(selectedOutLinkId);
+  // laneInfo가 변경될 때마다 laneDirections 업데이트
+  React.useEffect(() => {
+    setLaneDirections(getLaneDirections());
+  }, [laneInfo]);
+
+  // 드래그 앤 드롭 센서 설정
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // 드래그 종료 핸들러
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setLaneDirections((items) => {
+        const oldIndex = items.findIndex((item) => item.laneNumber === active.id);
+        const newIndex = items.findIndex((item) => item.laneNumber === over.id);
+
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
   };
 
   // 차선 추가 기능
@@ -198,47 +302,28 @@ const Lane: React.FC = () => {
                   ))}
                 </div>
 
-                {/* 차선 영역 */}
-                <div className="flex h-[calc(100%-40px)] min-w-max px-2">
-                  {laneDirections.map((lane) => {
-                    const isHighlighted = isLaneHighlighted(lane.outLinkIds);
-                    return (
-                      <div
-                        key={lane.laneNumber}
-                        className={`w-20 flex flex-col items-center border-r border-gray-200 last:border-r-0 transition-all cursor-pointer ${
-                          isHighlighted ? 'bg-purple-50' : 'bg-gray-600'
-                        }`}
-                        onClick={() => {
-                          if (lane.outLinkIds.length > 0) {
-                            setSelectedOutLinkId(lane.outLinkIds[0]);
-                          }
-                        }}
-                      >
-                        {/* 차선 번호 레이블 */}
-                        <div className="w-full py-1 text-center bg-gray-700 border-b border-gray-500">
-                          <span className="text-xs font-bold text-white">{lane.laneNumber}차선</span>
-                        </div>
-
-                        {/* 화살표 이미지 영역 */}
-                        <div className="flex-1 flex items-center justify-center relative w-full px-2 py-4">
-                          {lane.angles.map((angle, index) => (
-                            <img
-                              key={`${lane.laneNumber}-${angle}-${index}`}
-                              src={`/src/arrows/${angle}.png`}
-                              alt={`angle-${angle}`}
-                              className="absolute w-12 h-12 object-contain"
-                              style={{
-                                zIndex: lane.angles.length - index,
-                                opacity: index === 0 ? 1 : 0.8,
-                                filter: 'brightness(0) invert(1)'
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                {/* 차선 영역 - 드래그 앤 드롭 적용 */}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={laneDirections.map((lane) => lane.laneNumber)}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    <div className="flex h-[calc(100%-40px)] min-w-max px-2">
+                      {laneDirections.map((lane) => (
+                        <SortableLaneItem
+                          key={lane.laneNumber}
+                          lane={lane}
+                          selectedOutLinkId={selectedOutLinkId}
+                          setSelectedOutLinkId={setSelectedOutLinkId}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </div>
 
               {/* +버튼 영역 - 80px */}
