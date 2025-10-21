@@ -369,34 +369,6 @@ const Lane: React.FC = () => {
 
         {/* 디버깅 영역 */}
         <div className="p-4 bg-gray-50 border-t border-gray-300 space-y-3">
-          {/* OutLinkId 선택 */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-semibold text-gray-700">디버깅 - OutLinkId 선택:</span>
-            <button
-              onClick={() => setSelectedOutLinkId(null)}
-              className={`px-3 py-1 text-xs rounded ${
-                selectedOutLinkId === null
-                  ? 'bg-blue-500 text-white font-bold'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              전체
-            </button>
-            {[...new Set(laneInfo.map(info => info.outLinkId))].map((outLinkId) => (
-              <button
-                key={outLinkId}
-                onClick={() => setSelectedOutLinkId(outLinkId)}
-                className={`px-3 py-1 text-xs rounded ${
-                  selectedOutLinkId === outLinkId
-                    ? 'bg-purple-500 text-white font-bold'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                {outLinkId}
-              </button>
-            ))}
-          </div>
-
           {/* laneInfo 데이터 표시 */}
           <div className="bg-white p-3 rounded border border-gray-300">
             <h4 className="text-xs font-bold text-gray-800 mb-2">현재 laneInfo 데이터:</h4>
