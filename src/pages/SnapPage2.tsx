@@ -15,6 +15,8 @@ interface SnapPointInfo {
   type: 'start' | 'end';
   coordinate: Coordinate;
   isSnapped: boolean;
+  snapType?: 'vertex' | 'edge' | null;
+  verifiedOnLine?: boolean;
 }
 
 const SnapPage2: React.FC = () => {
@@ -24,7 +26,8 @@ const SnapPage2: React.FC = () => {
   const drawRef = useRef<Draw | null>(null);
   const snapRef = useRef<Snap | null>(null);
   const lastSnapCoordRef = useRef<Coordinate | null>(null);
-  const clickSnapStatusRef = useRef<(Coordinate | null)[]>([]);
+  const lastSnapTypeRef = useRef<'vertex' | 'edge' | null>(null);
+  const clickSnapStatusRef = useRef<Array<{coord: Coordinate | null, snapType: 'vertex' | 'edge' | null}>>([]);
 
   const [snapped, setSnapped] = useState(false);
   const [snapPoints, setSnapPoints] = useState<SnapPointInfo[]>([]);
@@ -74,7 +77,9 @@ const SnapPage2: React.FC = () => {
       setSnapped(true);
       const coord = event.vertex || event.coordinate;
       lastSnapCoordRef.current = coord;
-      console.log('Snap event - vertex:', event.vertex, 'edge:', event.coordinate);
+      // vertex가 있으면 꼭짓점 스냅, 없으면 선분(edge) 스냅
+      lastSnapTypeRef.current = event.vertex ? 'vertex' : 'edge';
+      console.log('Snap event - type:', lastSnapTypeRef.current, 'vertex:', event.vertex, 'edge:', event.coordinate);
     });
 
     map.on('pointermove', () => {
@@ -122,12 +127,19 @@ const SnapPage2: React.FC = () => {
       if (drawRef.current) {
         // Store snap coordinate if exists, null otherwise
         if (lastSnapCoordRef.current) {
-          clickSnapStatusRef.current.push([...lastSnapCoordRef.current]);
-          console.log('Click WITH snap:', lastSnapCoordRef.current);
+          clickSnapStatusRef.current.push({
+            coord: [...lastSnapCoordRef.current],
+            snapType: lastSnapTypeRef.current
+          });
+          console.log('Click WITH snap:', lastSnapCoordRef.current, 'type:', lastSnapTypeRef.current);
           // 클릭 후 snap 정보 초기화 (다음 클릭을 위해)
           lastSnapCoordRef.current = null;
+          lastSnapTypeRef.current = null;
         } else {
-          clickSnapStatusRef.current.push(null);
+          clickSnapStatusRef.current.push({
+            coord: null,
+            snapType: null
+          });
           console.log('Click WITHOUT snap');
         }
       }
@@ -154,30 +166,40 @@ const SnapPage2: React.FC = () => {
         const lastClickSnap = clickSnapStatusRef.current[clickSnapStatusRef.current.length - 1];
 
         // Check start point
-        const startSnapped = checkIfSnapped(startPoint, firstClickSnap);
+        const startSnapResult = checkIfSnapped(startPoint, firstClickSnap?.coord || null);
+        const startVerified = firstClickSnap?.coord ? verifyPointOnExistingLines(startPoint) : false;
         detectedSnapPoints.push({
           type: 'start',
           coordinate: startPoint,
-          isSnapped: startSnapped,
+          isSnapped: startSnapResult,
+          snapType: firstClickSnap?.snapType || null,
+          verifiedOnLine: startVerified,
         });
 
-        console.log(startSnapped ? '✓ Start point is SNAPPED' : '✗ Start point is NOT snapped');
+        console.log(startSnapResult ? '✓ Start point is SNAPPED' : '✗ Start point is NOT snapped');
+        console.log('Start point snap type:', firstClickSnap?.snapType);
+        console.log('Start point verified on line:', startVerified);
 
         // Check end point
-        const endSnapped = checkIfSnapped(endPoint, lastClickSnap);
+        const endSnapResult = checkIfSnapped(endPoint, lastClickSnap?.coord || null);
+        const endVerified = lastClickSnap?.coord ? verifyPointOnExistingLines(endPoint) : false;
         detectedSnapPoints.push({
           type: 'end',
           coordinate: endPoint,
-          isSnapped: endSnapped,
+          isSnapped: endSnapResult,
+          snapType: lastClickSnap?.snapType || null,
+          verifiedOnLine: endVerified,
         });
 
-        console.log(endSnapped ? '✓ End point is SNAPPED' : '✗ End point is NOT snapped');
+        console.log(endSnapResult ? '✓ End point is SNAPPED' : '✗ End point is NOT snapped');
+        console.log('End point snap type:', lastClickSnap?.snapType);
+        console.log('End point verified on line:', endVerified);
 
         setSnapPoints(detectedSnapPoints);
 
         console.log('=== Final Results ===');
-        console.log('Start point snapped:', startSnapped);
-        console.log('End point snapped:', endSnapped);
+        console.log('Start point snapped:', startSnapResult);
+        console.log('End point snapped:', endSnapResult);
 
         // Clear for next draw
         clickSnapStatusRef.current = [];
@@ -203,6 +225,94 @@ const SnapPage2: React.FC = () => {
 
     // Consider it snapped if within 1 pixel
     return distance < 1;
+  };
+
+  // Helper function to verify if a point is actually on existing lines
+  const verifyPointOnExistingLines = (point: Coordinate): boolean => {
+    const vectorSource = vectorSourceRef.current;
+    if (!vectorSource) return false;
+
+    const features = vectorSource.getFeatures();
+    const tolerance = 1; // 1 pixel tolerance
+
+    for (const feature of features) {
+      const geometry = feature.getGeometry();
+
+      if (geometry instanceof LineString) {
+        const coordinates = geometry.getCoordinates();
+
+        // Check if point is on any vertex
+        for (const coord of coordinates) {
+          const distance = Math.sqrt(
+            Math.pow(point[0] - coord[0], 2) +
+            Math.pow(point[1] - coord[1], 2)
+          );
+          if (distance < tolerance) {
+            console.log('Point verified on vertex:', coord);
+            return true;
+          }
+        }
+
+        // Check if point is on any edge
+        for (let i = 0; i < coordinates.length - 1; i++) {
+          const start = coordinates[i];
+          const end = coordinates[i + 1];
+
+          if (isPointOnSegment(point, start, end, tolerance)) {
+            console.log('Point verified on edge between:', start, 'and', end);
+            return true;
+          }
+        }
+      }
+    }
+
+    console.log('Point NOT verified on any existing line');
+    return false;
+  };
+
+  // Helper function to check if point is on a line segment
+  const isPointOnSegment = (
+    point: Coordinate,
+    segmentStart: Coordinate,
+    segmentEnd: Coordinate,
+    tolerance: number
+  ): boolean => {
+    const [px, py] = point;
+    const [x1, y1] = segmentStart;
+    const [x2, y2] = segmentEnd;
+
+    // Calculate distance from point to line segment
+    const A = px - x1;
+    const B = py - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+
+    let param = -1;
+    if (lenSq !== 0) {
+      param = dot / lenSq;
+    }
+
+    let xx, yy;
+
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+
+    const dx = px - xx;
+    const dy = py - yy;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    return distance < tolerance;
   };
 
   return (
@@ -252,6 +362,22 @@ const SnapPage2: React.FC = () => {
                         {snapInfo.isSnapped ? '✓ SNAPPED' : '✗ NOT SNAPPED'}
                       </span>
                     </div>
+                    {snapInfo.snapType && (
+                      <div className="text-xs mb-1">
+                        <span className="font-semibold">스냅 타입: </span>
+                        <span className={snapInfo.snapType === 'vertex' ? 'text-blue-600' : 'text-purple-600'}>
+                          {snapInfo.snapType === 'vertex' ? '꼭짓점' : '선분'}
+                        </span>
+                      </div>
+                    )}
+                    {snapInfo.verifiedOnLine !== undefined && (
+                      <div className="text-xs mb-1">
+                        <span className="font-semibold">기존 선 위 검증: </span>
+                        <span className={snapInfo.verifiedOnLine ? 'text-green-600' : 'text-red-600'}>
+                          {snapInfo.verifiedOnLine ? '✓ 확인됨' : '✗ 확인 안됨'}
+                        </span>
+                      </div>
+                    )}
                     <div className="text-gray-700 font-mono text-[10px]">
                       X: {snapInfo.coordinate[0].toFixed(2)}, Y: {snapInfo.coordinate[1].toFixed(2)}
                     </div>
