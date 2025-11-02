@@ -5,6 +5,7 @@ import Lane from './pages/Lane';
 import Test from './pages/Test';
 import SnapPage from './pages/SnapPage';
 import SnapPage2 from './pages/SnapPage2';
+import SnapPage3 from './pages/SnapPage3';
 import './App.css';
 
 const App: React.FC = () => {
@@ -26,7 +27,7 @@ const App: React.FC = () => {
         <Route path='/test' element={<Test/>} />
         <Route path='/snap' element={<SnapPage/>} />
         <Route path='/snap2' element={<SnapPage2/>} />
-
+        <Route path='/snap3' element={<SnapPage3/>} />
       </Routes>
     </Router>
   );

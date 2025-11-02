@@ -23,20 +23,16 @@ interface SnapPointInfo {
 }
 
 /**
- * LineString의 시작점과 끝점만 스냅 여부를 검증하는 컴포넌트
+ * drawEnd 시점에만 스냅 여부를 확인하는 간소화된 버전
+ * clickSnapStatusRef를 사용하지 않고 좌표 검증만으로 스냅 여부를 판단
  */
-const SnapPage2: React.FC = () => {
+const SnapPage3: React.FC = () => {
   // Refs: DOM 요소 및 OpenLayers 객체 참조
   const mapRef = useRef<HTMLDivElement>(null);  // 지도 컨테이너 DOM
   const mapInstanceRef = useRef<Map | null>(null);  // OpenLayers Map 인스턴스
   const vectorSourceRef = useRef<VectorSource | null>(null);  // 벡터 레이어 소스
   const drawRef = useRef<Draw | null>(null);  // Draw 인터랙션
   const snapRef = useRef<Snap | null>(null);  // Snap 인터랙션
-
-  // Snap 상태 추적을 위한 Refs
-  const lastSnapCoordRef = useRef<Coordinate | null>(null);  // 마지막 스냅 좌표
-  const lastSnapTypeRef = useRef<'vertex' | 'edge' | null>(null);  // 마지막 스냅 타입
-  const clickSnapStatusRef = useRef<Array<{coord: Coordinate | null, snapType: 'vertex' | 'edge' | null}>>([]);  // 클릭 시 스냅 상태 기록
 
   // State: 현재 스냅 상태 및 스냅 지점 정보
   const [snapped, setSnapped] = useState(false);  // 현재 스냅 중인지 여부
@@ -88,21 +84,14 @@ const SnapPage2: React.FC = () => {
     map.addInteraction(snap);
     snapRef.current = snap;
 
-    // Snap 이벤트 리스너 - 스냅이 발생할 때 호출됨
-    snap.on('snap', (event: any) => {
+    // Snap 이벤트 리스너 - UI 표시용
+    snap.on('snap', () => {
       setSnapped(true);
-      const coord = event.vertex || event.coordinate;
-      lastSnapCoordRef.current = coord;
-      // vertex가 있으면 꼭짓점 스냅, 없으면 선분(edge) 스냅
-      lastSnapTypeRef.current = event.vertex ? 'vertex' : 'edge';
-      console.log('Snap event - type:', lastSnapTypeRef.current, 'vertex:', event.vertex, 'edge:', event.coordinate);
     });
 
     // 마우스 이동 시 스냅 상태 초기화 (UI 표시용)
     map.on('pointermove', () => {
       setSnapped(false);
-      // pointermove에서 snap 정보를 초기화하지 않음
-      // 클릭할 때까지 마지막 snap 정보를 유지하여 타이밍 문제 방지
     });
 
     // 컴포넌트 언마운트 시 정리
@@ -112,7 +101,7 @@ const SnapPage2: React.FC = () => {
   }, []);
 
   /**
-   * Draw 인터랙션 설정 및 클릭/드로우 이벤트 처리
+   * Draw 인터랙션 설정
    */
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -135,36 +124,7 @@ const SnapPage2: React.FC = () => {
     // 드로우 시작 이벤트 - 상태 초기화
     draw.on('drawstart', () => {
       setSnapPoints([]);
-      clickSnapStatusRef.current = [];
       console.log('=== Draw Started ===');
-    });
-
-    // 드로우 취소 이벤트 - 클릭 기록 초기화
-    draw.on('drawabort', () => {
-      clickSnapStatusRef.current = [];
-    });
-
-    // 지도 클릭 이벤트 - 각 클릭 시점의 스냅 상태를 기록
-    map.on('click', () => {
-      if (drawRef.current) {
-        // 스냅 좌표가 있으면 저장, 없으면 null 저장
-        if (lastSnapCoordRef.current) {
-          clickSnapStatusRef.current.push({
-            coord: [...lastSnapCoordRef.current],
-            snapType: lastSnapTypeRef.current
-          });
-          console.log('Click WITH snap:', lastSnapCoordRef.current, 'type:', lastSnapTypeRef.current);
-          // 클릭 후 snap 정보 초기화 (다음 클릭을 위해)
-          lastSnapCoordRef.current = null;
-          lastSnapTypeRef.current = null;
-        } else {
-          clickSnapStatusRef.current.push({
-            coord: null,
-            snapType: null
-          });
-          console.log('Click WITHOUT snap');
-        }
-      }
     });
 
     // 드로우 완료 이벤트 - 시작점과 끝점의 스냅 여부 검증
@@ -178,55 +138,43 @@ const SnapPage2: React.FC = () => {
 
         console.log('=== Draw End Analysis ===');
         console.log('Total coordinates:', coordinates.length);
-        console.log('Total clicks recorded:', clickSnapStatusRef.current.length);
         console.log('Start point:', startPoint);
         console.log('End point:', endPoint);
 
         const detectedSnapPoints: SnapPointInfo[] = [];
 
-        // 첫 번째와 마지막 클릭 시점의 스냅 상태 가져오기
-        const firstClickSnap = clickSnapStatusRef.current[0];
-        const lastClickSnap = clickSnapStatusRef.current[clickSnapStatusRef.current.length - 1];
-
-        // 시작점 스냅 검증
-        const startSnapResult = checkIfSnapped(startPoint, firstClickSnap?.coord || null);
-        const startVerified = firstClickSnap?.coord ? verifyPointOnExistingLines(startPoint) : false;
+        // 시작점 검증 (개선된 함수 사용)
+        const startSnapInfo = verifyPointOnExistingLinesWithType(startPoint);
         detectedSnapPoints.push({
           type: 'start',
           coordinate: startPoint,
-          isSnapped: startSnapResult,
-          snapType: firstClickSnap?.snapType || null,
-          verifiedOnLine: startVerified,
+          isSnapped: startSnapInfo.isSnapped,
+          snapType: startSnapInfo.snapType,
+          verifiedOnLine: startSnapInfo.isSnapped,
         });
 
-        console.log(startSnapResult ? '✓ Start point is SNAPPED' : '✗ Start point is NOT snapped');
-        console.log('Start point snap type:', firstClickSnap?.snapType);
-        console.log('Start point verified on line:', startVerified);
+        console.log(startSnapInfo.isSnapped ? '✓ Start point is SNAPPED' : '✗ Start point is NOT snapped');
+        console.log('Start point snap type:', startSnapInfo.snapType);
 
-        // 끝점 스냅 검증
-        const endSnapResult = checkIfSnapped(endPoint, lastClickSnap?.coord || null);
-        const endVerified = lastClickSnap?.coord ? verifyPointOnExistingLines(endPoint) : false;
+        // 끝점 검증 (개선된 함수 사용)
+        const endSnapInfo = verifyPointOnExistingLinesWithType(endPoint);
         detectedSnapPoints.push({
           type: 'end',
           coordinate: endPoint,
-          isSnapped: endSnapResult,
-          snapType: lastClickSnap?.snapType || null,
-          verifiedOnLine: endVerified,
+          isSnapped: endSnapInfo.isSnapped,
+          snapType: endSnapInfo.snapType,
+          verifiedOnLine: endSnapInfo.isSnapped,
         });
 
-        console.log(endSnapResult ? '✓ End point is SNAPPED' : '✗ End point is NOT snapped');
-        console.log('End point snap type:', lastClickSnap?.snapType);
-        console.log('End point verified on line:', endVerified);
+        console.log(endSnapInfo.isSnapped ? '✓ End point is SNAPPED' : '✗ End point is NOT snapped');
+        console.log('End point snap type:', endSnapInfo.snapType);
 
         // UI에 결과 표시
         setSnapPoints(detectedSnapPoints);
 
         console.log('=== Final Results ===');
-        console.log('Start point snapped:', startSnapResult);
-        console.log('End point snapped:', endSnapResult);
-
-        // 다음 드로우를 위해 클릭 기록 초기화
-        clickSnapStatusRef.current = [];
+        console.log('Start point snapped:', startSnapInfo.isSnapped);
+        console.log('End point snapped:', endSnapInfo.isSnapped);
       }
     });
 
@@ -240,32 +188,16 @@ const SnapPage2: React.FC = () => {
   }, []);
 
   /**
-   * 좌표가 스냅되었는지 확인하는 헬퍼 함수
-   * @param coord 확인할 좌표
-   * @param snapCoord 스냅된 좌표 (없으면 null)
-   * @returns 스냅 여부 (1 픽셀 이내면 true)
-   */
-  const checkIfSnapped = (coord: Coordinate, snapCoord: Coordinate | null): boolean => {
-    if (!snapCoord) return false;
-
-    // 유클리드 거리 계산
-    const distance = Math.sqrt(
-      Math.pow(coord[0] - snapCoord[0], 2) +
-      Math.pow(coord[1] - snapCoord[1], 2)
-    );
-
-    // 1 픽셀 이내면 스냅된 것으로 간주
-    return distance < 1;
-  };
-
-  /**
-   * 점이 실제로 기존 선 위에 있는지 검증하는 헬퍼 함수
+   * 점이 기존 선 위에 있는지 검증하고 스냅 타입도 반환하는 개선된 함수
    * @param point 확인할 점의 좌표
-   * @returns 기존 선 위에 있으면 true
+   * @returns 스냅 여부와 타입 정보
    */
-  const verifyPointOnExistingLines = (point: Coordinate): boolean => {
+  const verifyPointOnExistingLinesWithType = (point: Coordinate): {
+    isSnapped: boolean;
+    snapType: 'vertex' | 'edge' | null;
+  } => {
     const vectorSource = vectorSourceRef.current;
-    if (!vectorSource) return false;
+    if (!vectorSource) return { isSnapped: false, snapType: null };
 
     const features = vectorSource.getFeatures();
     const tolerance = 1; // 1 픽셀 허용 오차
@@ -277,7 +209,7 @@ const SnapPage2: React.FC = () => {
       if (geometry instanceof LineString) {
         const coordinates = geometry.getCoordinates();
 
-        // 꼭짓점(vertex) 위에 있는지 확인
+        // 1. 먼저 꼭짓점(vertex) 위에 있는지 확인
         for (const coord of coordinates) {
           const distance = Math.sqrt(
             Math.pow(point[0] - coord[0], 2) +
@@ -285,25 +217,25 @@ const SnapPage2: React.FC = () => {
           );
           if (distance < tolerance) {
             console.log('Point verified on vertex:', coord);
-            return true;
+            return { isSnapped: true, snapType: 'vertex' };
           }
         }
 
-        // 선분(edge) 위에 있는지 확인
+        // 2. 꼭짓점이 아니면 선분(edge) 위에 있는지 확인
         for (let i = 0; i < coordinates.length - 1; i++) {
           const start = coordinates[i];
           const end = coordinates[i + 1];
 
           if (isPointOnSegment(point, start, end, tolerance)) {
             console.log('Point verified on edge between:', start, 'and', end);
-            return true;
+            return { isSnapped: true, snapType: 'edge' };
           }
         }
       }
     }
 
     console.log('Point NOT verified on any existing line');
-    return false;
+    return { isSnapped: false, snapType: null };
   };
 
   /**
@@ -367,8 +299,13 @@ const SnapPage2: React.FC = () => {
     <div className="w-full min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-800 mb-4">
-          Snap Interaction - LineString Start/End Points Only
+          Snap Page 3 - Simplified (drawEnd Only)
         </h1>
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded">
+          <p className="text-sm text-yellow-800">
+            💡 <strong>개선 사항:</strong> clickSnapStatusRef를 사용하지 않고 drawEnd 시점에만 좌표 검증으로 스냅 여부를 판단합니다.
+          </p>
+        </div>
 
         {/* 지도 컨테이너 */}
         <div
@@ -389,7 +326,7 @@ const SnapPage2: React.FC = () => {
           {snapPoints.length > 0 && (
             <div className="p-3 bg-blue-50 rounded border border-blue-200">
               <h4 className="text-sm font-bold text-blue-900 mb-2">
-                LineString Snap Results
+                LineString Snap Results (Verified at drawEnd)
               </h4>
               <div className="space-y-2">
                 {snapPoints.map((snapInfo, index) => (
@@ -417,7 +354,7 @@ const SnapPage2: React.FC = () => {
                       <div className="text-xs mb-1">
                         <span className="font-semibold">스냅 타입: </span>
                         <span className={snapInfo.snapType === 'vertex' ? 'text-blue-600' : 'text-purple-600'}>
-                          {snapInfo.snapType === 'vertex' ? '꼭짓점' : '선분'}
+                          {snapInfo.snapType === 'vertex' ? '꼭짓점 (Vertex)' : '선분 (Edge)'}
                         </span>
                       </div>
                     )}
@@ -443,16 +380,42 @@ const SnapPage2: React.FC = () => {
 
         {/* 사용 방법 안내 */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-bold text-blue-900 mb-2">사용 방법</h3>
+          <h3 className="font-bold text-blue-900 mb-2">사용 방법 및 특징</h3>
           <ul className="text-sm text-blue-800 space-y-1">
             <li>• LineString을 그려서 기존 선과 연결해보세요</li>
-            <li>• 시작점과 끝점이 기존 선에 스냅되었는지 확인할 수 있습니다</li>
-            <li>• 중간점은 무시되고 시작점/끝점만 표시됩니다</li>
+            <li>• drawEnd 시점에만 좌표를 검증하여 스냅 여부를 확인합니다</li>
+            <li>• vertex(꼭짓점)와 edge(선분) 스냅을 구분할 수 있습니다</li>
+            <li>• clickSnapStatusRef를 사용하지 않아 코드가 더 간단합니다</li>
           </ul>
+        </div>
+
+        {/* 비교 정보 */}
+        <div className="mt-4 p-4 bg-gray-100 border border-gray-300 rounded-lg">
+          <h3 className="font-bold text-gray-900 mb-2">SnapPage2 vs SnapPage3 비교</h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <h4 className="font-semibold text-gray-800 mb-1">SnapPage2</h4>
+              <ul className="text-gray-700 space-y-1">
+                <li>✅ 실시간 snap 이벤트 추적</li>
+                <li>✅ 정확한 스냅 타입 정보</li>
+                <li>❌ 복잡한 코드 (clickSnapStatusRef)</li>
+                <li>❌ 클릭마다 상태 저장</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-gray-800 mb-1">SnapPage3</h4>
+              <ul className="text-gray-700 space-y-1">
+                <li>✅ 간단한 코드 구조</li>
+                <li>✅ drawEnd 시점만 검증</li>
+                <li>✅ 메모리 효율적</li>
+                <li>✅ vertex/edge 구분 가능</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-export default SnapPage2;
+export default SnapPage3;
