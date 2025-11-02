@@ -74,12 +74,13 @@ const SnapPage2: React.FC = () => {
       setSnapped(true);
       const coord = event.vertex || event.coordinate;
       lastSnapCoordRef.current = coord;
-      console.log('Snap event:', coord);
+      console.log('Snap event - vertex:', event.vertex, 'edge:', event.coordinate);
     });
 
     map.on('pointermove', () => {
       setSnapped(false);
-      lastSnapCoordRef.current = null;
+      // pointermove에서 snap 정보를 초기화하지 않음
+      // 클릭할 때까지 마지막 snap 정보를 유지하여 타이밍 문제 방지
     });
 
     // Cleanup
@@ -123,6 +124,8 @@ const SnapPage2: React.FC = () => {
         if (lastSnapCoordRef.current) {
           clickSnapStatusRef.current.push([...lastSnapCoordRef.current]);
           console.log('Click WITH snap:', lastSnapCoordRef.current);
+          // 클릭 후 snap 정보 초기화 (다음 클릭을 위해)
+          lastSnapCoordRef.current = null;
         } else {
           clickSnapStatusRef.current.push(null);
           console.log('Click WITHOUT snap');
