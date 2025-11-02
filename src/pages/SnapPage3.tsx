@@ -20,6 +20,7 @@ interface SnapPointInfo {
   isSnapped: boolean;  // 스냅 여부
   snapType?: 'vertex' | 'edge' | null;  // 스냅 타입 (꼭짓점 또는 선분)
   verifiedOnLine?: boolean;  // 기존 선 위에 있는지 검증 여부
+  snappedLineId?: string | null;  // 스냅된 선의 ID
 }
 
 /**
@@ -33,6 +34,9 @@ const SnapPage3: React.FC = () => {
   const vectorSourceRef = useRef<VectorSource | null>(null);  // 벡터 레이어 소스
   const drawRef = useRef<Draw | null>(null);  // Draw 인터랙션
   const snapRef = useRef<Snap | null>(null);  // Snap 인터랙션
+
+  // LineString ID 카운터
+  const lineIdCounterRef = useRef<number>(0);  // LineString에 부여할 ID 카운터
 
   // State: 현재 스냅 상태 및 스냅 지점 정보
   const [snapped, setSnapped] = useState(false);  // 현재 스냅 중인지 여부
@@ -132,6 +136,11 @@ const SnapPage3: React.FC = () => {
       const geometry = event.feature.getGeometry();
 
       if (geometry instanceof LineString) {
+        // 새로운 LineString에 ID 부여
+        const newLineId = `LINE_${++lineIdCounterRef.current}`;
+        event.feature.setId(newLineId);
+        console.log('🆔 New line created with ID:', newLineId);
+
         const coordinates = geometry.getCoordinates();
         const startPoint = coordinates[0];
         const endPoint = coordinates[coordinates.length - 1];
@@ -143,31 +152,43 @@ const SnapPage3: React.FC = () => {
 
         const detectedSnapPoints: SnapPointInfo[] = [];
 
-        // 시작점 검증 (개선된 함수 사용)
+        // 시작점 검증 및 스냅된 선의 ID 찾기
         const startSnapInfo = verifyPointOnExistingLinesWithType(startPoint);
+        const startSnappedLineId = startSnapInfo.lineId;
+
         detectedSnapPoints.push({
           type: 'start',
           coordinate: startPoint,
           isSnapped: startSnapInfo.isSnapped,
           snapType: startSnapInfo.snapType,
           verifiedOnLine: startSnapInfo.isSnapped,
+          snappedLineId: startSnappedLineId,
         });
 
         console.log(startSnapInfo.isSnapped ? '✓ Start point is SNAPPED' : '✗ Start point is NOT snapped');
         console.log('Start point snap type:', startSnapInfo.snapType);
+        if (startSnappedLineId) {
+          console.log('🔗 Start point snapped to line:', startSnappedLineId);
+        }
 
-        // 끝점 검증 (개선된 함수 사용)
+        // 끝점 검증 및 스냅된 선의 ID 찾기
         const endSnapInfo = verifyPointOnExistingLinesWithType(endPoint);
+        const endSnappedLineId = endSnapInfo.lineId;
+
         detectedSnapPoints.push({
           type: 'end',
           coordinate: endPoint,
           isSnapped: endSnapInfo.isSnapped,
           snapType: endSnapInfo.snapType,
           verifiedOnLine: endSnapInfo.isSnapped,
+          snappedLineId: endSnappedLineId,
         });
 
         console.log(endSnapInfo.isSnapped ? '✓ End point is SNAPPED' : '✗ End point is NOT snapped');
         console.log('End point snap type:', endSnapInfo.snapType);
+        if (endSnappedLineId) {
+          console.log('🔗 End point snapped to line:', endSnappedLineId);
+        }
 
         // UI에 결과 표시
         setSnapPoints(detectedSnapPoints);
@@ -188,16 +209,17 @@ const SnapPage3: React.FC = () => {
   }, []);
 
   /**
-   * 점이 기존 선 위에 있는지 검증하고 스냅 타입도 반환하는 개선된 함수
+   * 점이 기존 선 위에 있는지 검증하고 스냅 타입 및 선 ID를 반환하는 개선된 함수
    * @param point 확인할 점의 좌표
-   * @returns 스냅 여부와 타입 정보
+   * @returns 스냅 여부, 타입, 선 ID 정보
    */
   const verifyPointOnExistingLinesWithType = (point: Coordinate): {
     isSnapped: boolean;
     snapType: 'vertex' | 'edge' | null;
+    lineId: string | null;
   } => {
     const vectorSource = vectorSourceRef.current;
-    if (!vectorSource) return { isSnapped: false, snapType: null };
+    if (!vectorSource) return { isSnapped: false, snapType: null, lineId: null };
 
     const features = vectorSource.getFeatures();
     const tolerance = 1; // 1 픽셀 허용 오차
@@ -216,8 +238,13 @@ const SnapPage3: React.FC = () => {
             Math.pow(point[1] - coord[1], 2)
           );
           if (distance < tolerance) {
+            const lineId = feature.getId();
             console.log('Point verified on vertex:', coord);
-            return { isSnapped: true, snapType: 'vertex' };
+            return {
+              isSnapped: true,
+              snapType: 'vertex',
+              lineId: lineId ? String(lineId) : null
+            };
           }
         }
 
@@ -227,15 +254,20 @@ const SnapPage3: React.FC = () => {
           const end = coordinates[i + 1];
 
           if (isPointOnSegment(point, start, end, tolerance)) {
+            const lineId = feature.getId();
             console.log('Point verified on edge between:', start, 'and', end);
-            return { isSnapped: true, snapType: 'edge' };
+            return {
+              isSnapped: true,
+              snapType: 'edge',
+              lineId: lineId ? String(lineId) : null
+            };
           }
         }
       }
     }
 
     console.log('Point NOT verified on any existing line');
-    return { isSnapped: false, snapType: null };
+    return { isSnapped: false, snapType: null, lineId: null };
   };
 
   /**
@@ -367,9 +399,18 @@ const SnapPage3: React.FC = () => {
                         </span>
                       </div>
                     )}
+                    {/* 스냅된 선의 ID */}
+                    {snapInfo.snappedLineId && (
+                      <div className="text-xs mb-1">
+                        <span className="font-semibold">🔗 스냅된 선 ID: </span>
+                        <span className="text-indigo-600 font-mono font-bold">
+                          {snapInfo.snappedLineId}
+                        </span>
+                      </div>
+                    )}
                     {/* 좌표 정보 */}
                     <div className="text-gray-700 font-mono text-[10px]">
-                      X: {snapInfo.coordinate[0]}, Y: {snapInfo.coordinate[1]}
+                      X: {snapInfo.coordinate[0].toFixed(2)}, Y: {snapInfo.coordinate[1].toFixed(2)}
                     </div>
                   </div>
                 ))}
@@ -383,8 +424,10 @@ const SnapPage3: React.FC = () => {
           <h3 className="font-bold text-blue-900 mb-2">사용 방법 및 특징</h3>
           <ul className="text-sm text-blue-800 space-y-1">
             <li>• LineString을 그려서 기존 선과 연결해보세요</li>
+            <li>• 각 LineString에 LINE_1, LINE_2 등 고유 ID가 자동으로 부여됩니다</li>
             <li>• drawEnd 시점에만 좌표를 검증하여 스냅 여부를 확인합니다</li>
             <li>• vertex(꼭짓점)와 edge(선분) 스냅을 구분할 수 있습니다</li>
+            <li>• 스냅된 경우 해당 선의 ID를 표시합니다</li>
             <li>• clickSnapStatusRef를 사용하지 않아 코드가 더 간단합니다</li>
           </ul>
         </div>

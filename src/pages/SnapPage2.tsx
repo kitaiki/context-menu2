@@ -20,6 +20,7 @@ interface SnapPointInfo {
   isSnapped: boolean;  // 스냅 여부
   snapType?: 'vertex' | 'edge' | null;  // 스냅 타입 (꼭짓점 또는 선분)
   verifiedOnLine?: boolean;  // 기존 선 위에 있는지 검증 여부
+  snappedLineId?: string | null;  // 스냅된 선의 ID
 }
 
 /**
@@ -37,6 +38,9 @@ const SnapPage2: React.FC = () => {
   const lastSnapCoordRef = useRef<Coordinate | null>(null);  // 마지막 스냅 좌표
   const lastSnapTypeRef = useRef<'vertex' | 'edge' | null>(null);  // 마지막 스냅 타입
   const clickSnapStatusRef = useRef<Array<{coord: Coordinate | null, snapType: 'vertex' | 'edge' | null}>>([]);  // 클릭 시 스냅 상태 기록
+
+  // LineString ID 카운터
+  const lineIdCounterRef = useRef<number>(0);  // LineString에 부여할 ID 카운터
 
   // State: 현재 스냅 상태 및 스냅 지점 정보
   const [snapped, setSnapped] = useState(false);  // 현재 스냅 중인지 여부
@@ -172,6 +176,11 @@ const SnapPage2: React.FC = () => {
       const geometry = event.feature.getGeometry();
 
       if (geometry instanceof LineString) {
+        // 새로운 LineString에 ID 부여
+        const newLineId = `LINE_${++lineIdCounterRef.current}`;
+        event.feature.setId(newLineId);
+        console.log('🆔 New line created with ID:', newLineId);
+
         const coordinates = geometry.getCoordinates();
         const startPoint = coordinates[0];
         const endPoint = coordinates[coordinates.length - 1];
@@ -188,35 +197,47 @@ const SnapPage2: React.FC = () => {
         const firstClickSnap = clickSnapStatusRef.current[0];
         const lastClickSnap = clickSnapStatusRef.current[clickSnapStatusRef.current.length - 1];
 
-        // 시작점 스냅 검증
+        // 시작점 스냅 검증 및 스냅된 선의 ID 찾기
         const startSnapResult = checkIfSnapped(startPoint, firstClickSnap?.coord || null);
         const startVerified = firstClickSnap?.coord ? verifyPointOnExistingLines(startPoint) : false;
+        const startSnappedLineId = startVerified ? findSnappedLineId(startPoint) : null;
+
         detectedSnapPoints.push({
           type: 'start',
           coordinate: startPoint,
           isSnapped: startSnapResult,
           snapType: firstClickSnap?.snapType || null,
           verifiedOnLine: startVerified,
+          snappedLineId: startSnappedLineId,
         });
 
         console.log(startSnapResult ? '✓ Start point is SNAPPED' : '✗ Start point is NOT snapped');
         console.log('Start point snap type:', firstClickSnap?.snapType);
         console.log('Start point verified on line:', startVerified);
+        if (startSnappedLineId) {
+          console.log('🔗 Start point snapped to line:', startSnappedLineId);
+        }
 
-        // 끝점 스냅 검증
+        // 끝점 스냅 검증 및 스냅된 선의 ID 찾기
         const endSnapResult = checkIfSnapped(endPoint, lastClickSnap?.coord || null);
         const endVerified = lastClickSnap?.coord ? verifyPointOnExistingLines(endPoint) : false;
+        const endSnappedLineId = endVerified ? findSnappedLineId(endPoint) : null;
+
         detectedSnapPoints.push({
           type: 'end',
           coordinate: endPoint,
           isSnapped: endSnapResult,
           snapType: lastClickSnap?.snapType || null,
           verifiedOnLine: endVerified,
+          snappedLineId: endSnappedLineId,
         });
 
         console.log(endSnapResult ? '✓ End point is SNAPPED' : '✗ End point is NOT snapped');
         console.log('End point snap type:', lastClickSnap?.snapType);
         console.log('End point verified on line:', endVerified);
+        if (endSnappedLineId) {
+          console.log('🔗 End point snapped to line:', endSnappedLineId);
+        }
 
         // UI에 결과 표시
         setSnapPoints(detectedSnapPoints);
@@ -304,6 +325,53 @@ const SnapPage2: React.FC = () => {
 
     console.log('Point NOT verified on any existing line');
     return false;
+  };
+
+  /**
+   * 점이 스냅된 선의 ID를 찾는 헬퍼 함수
+   * @param point 확인할 점의 좌표
+   * @returns 스냅된 선의 ID 또는 null
+   */
+  const findSnappedLineId = (point: Coordinate): string | null => {
+    const vectorSource = vectorSourceRef.current;
+    if (!vectorSource) return null;
+
+    const features = vectorSource.getFeatures();
+    const tolerance = 1; // 1 픽셀 허용 오차
+
+    // 모든 피처를 순회하며 해당 점이 속한 선 찾기
+    for (const feature of features) {
+      const geometry = feature.getGeometry();
+
+      if (geometry instanceof LineString) {
+        const coordinates = geometry.getCoordinates();
+
+        // 꼭짓점(vertex) 위에 있는지 확인
+        for (const coord of coordinates) {
+          const distance = Math.sqrt(
+            Math.pow(point[0] - coord[0], 2) +
+            Math.pow(point[1] - coord[1], 2)
+          );
+          if (distance < tolerance) {
+            const lineId = feature.getId();
+            return lineId ? String(lineId) : null;
+          }
+        }
+
+        // 선분(edge) 위에 있는지 확인
+        for (let i = 0; i < coordinates.length - 1; i++) {
+          const start = coordinates[i];
+          const end = coordinates[i + 1];
+
+          if (isPointOnSegment(point, start, end, tolerance)) {
+            const lineId = feature.getId();
+            return lineId ? String(lineId) : null;
+          }
+        }
+      }
+    }
+
+    return null;
   };
 
   /**
@@ -430,9 +498,18 @@ const SnapPage2: React.FC = () => {
                         </span>
                       </div>
                     )}
+                    {/* 스냅된 선의 ID */}
+                    {snapInfo.snappedLineId && (
+                      <div className="text-xs mb-1">
+                        <span className="font-semibold">🔗 스냅된 선 ID: </span>
+                        <span className="text-indigo-600 font-mono font-bold">
+                          {snapInfo.snappedLineId}
+                        </span>
+                      </div>
+                    )}
                     {/* 좌표 정보 */}
                     <div className="text-gray-700 font-mono text-[10px]">
-                      X: {snapInfo.coordinate[0]}, Y: {snapInfo.coordinate[1]}
+                      X: {snapInfo.coordinate[0].toFixed(2)}, Y: {snapInfo.coordinate[1].toFixed(2)}
                     </div>
                   </div>
                 ))}
