@@ -28,7 +28,7 @@ const SnapPage: React.FC = () => {
   const modifyRef = useRef<Modify | null>(null);
   const snapRef = useRef<Snap | null>(null);
   const lastSnapCoordRef = useRef<Coordinate | null>(null);
-  const snappedCoordsRef = useRef<Set<string>>(new Set());
+  const currentDrawingCoordsRef = useRef<Coordinate[]>([]);
 
   const [snapped, setSnapped] = useState(false);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('draw');
@@ -75,18 +75,12 @@ const SnapPage: React.FC = () => {
     map.addInteraction(snap);
     snapRef.current = snap;
 
-    // Listen to snap events
+    // Listen to snap events - only track the most recent snap coordinate
     snap.on('snap', (event: any) => {
       setSnapped(true);
       const coord = event.vertex || event.coordinate;
       lastSnapCoordRef.current = coord;
-
-      // Store snapped coordinate as string with rounding to avoid floating point precision issues
-      if (coord) {
-        const coordKey = `${Math.round(coord[0] * 1e6)},${Math.round(coord[1] * 1e6)}`;
-        snappedCoordsRef.current.add(coordKey);
-        console.log('Snap event - added coordinate:', coordKey);
-      }
+      console.log('Snap event - coordinate:', coord);
     });
 
     map.on('pointermove', () => {
@@ -123,14 +117,30 @@ const SnapPage: React.FC = () => {
         type: drawType,
       });
 
-      // Track snap points during drawing
-      const tempSnapPoints: SnapInfo[] = [];
-
       draw.on('drawstart', () => {
-        tempSnapPoints.length = 0;
         setSnapPoints([]);
-        snappedCoordsRef.current.clear();
-        console.log('Draw started - cleared snap tracking');
+        currentDrawingCoordsRef.current = [];
+        console.log('Draw started');
+      });
+
+      // Track coordinates as they are added during drawing
+      draw.on('drawabort', () => {
+        currentDrawingCoordsRef.current = [];
+      });
+
+      // Listen to clicks during drawing to capture snap status
+      map.on('click', () => {
+        if (drawRef.current) {
+          // Store the current snap coordinate if it exists
+          if (lastSnapCoordRef.current) {
+            currentDrawingCoordsRef.current.push([...lastSnapCoordRef.current]);
+            console.log('Click with snap:', lastSnapCoordRef.current);
+          } else {
+            // Mark as null to indicate this point was NOT snapped
+            currentDrawingCoordsRef.current.push(null as any);
+            console.log('Click without snap');
+          }
+        }
       });
 
       draw.on('drawend', (event: DrawEvent) => {
@@ -150,38 +160,48 @@ const SnapPage: React.FC = () => {
           }
 
           const detectedSnapPoints: SnapInfo[] = [];
+          const snappedCoords = currentDrawingCoordsRef.current.filter(c => c !== null);
 
           console.log('=== Draw End Analysis ===');
-          console.log('Total new coordinates:', coordinates.length);
-          console.log('Snapped coordinates tracked:', Array.from(snappedCoordsRef.current));
+          console.log('Total coordinates:', coordinates.length);
+          console.log('Snapped clicks recorded:', snappedCoords.length);
 
-          // Check each coordinate against the tracked snap coordinates
+          // Check each coordinate to see if it was snapped
           coordinates.forEach((coord, coordIndex) => {
-            const coordKey = `${Math.round(coord[0] * 1e6)},${Math.round(coord[1] * 1e6)}`;
+            // Check if this coordinate matches any of our recorded snap coordinates
+            const wasSnapped = snappedCoords.some(snapCoord => {
+              if (!snapCoord) return false;
+              const distance = Math.sqrt(
+                Math.pow(coord[0] - snapCoord[0], 2) +
+                Math.pow(coord[1] - snapCoord[1], 2)
+              );
+              // Consider it a match if within 1 pixel (very small threshold)
+              return distance < 1;
+            });
 
-            if (snappedCoordsRef.current.has(coordKey)) {
-              console.log(`✓ Point ${coordIndex} is SNAPPED:`, coordKey);
+            if (wasSnapped) {
+              console.log(`✓ Point ${coordIndex} is SNAPPED:`, coord);
               detectedSnapPoints.push({
                 coordinate: coord,
                 isSnapped: true,
               });
             } else {
-              console.log(`✗ Point ${coordIndex} is NOT snapped:`, coordKey);
+              console.log(`✗ Point ${coordIndex} is NOT snapped:`, coord);
             }
           });
 
           setSnapPoints(detectedSnapPoints);
 
-          // Log snap information
+          // Log final results
           console.log('=== Final Results ===');
           console.log('Total coordinates:', coordinates.length);
-          console.log('Snapped points:', detectedSnapPoints.length);
+          console.log('Snapped points detected:', detectedSnapPoints.length);
           detectedSnapPoints.forEach((snapInfo, index) => {
             console.log(`Snap point ${index + 1}:`, snapInfo.coordinate);
           });
 
           // Clear for next draw
-          snappedCoordsRef.current.clear();
+          currentDrawingCoordsRef.current = [];
         }
       });
 
