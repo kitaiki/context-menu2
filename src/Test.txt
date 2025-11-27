@@ -1,0 +1,81 @@
+import java.util.*;
+
+public class LinkOrderComparator {
+    
+    public static class LinkData {
+        private int outLinkId;
+        private int outLinkMapId;
+        private int crossType;
+        private int patternId;
+        
+        public LinkData(int outLinkId, int outLinkMapId, int crossType, int patternId) {
+            this.outLinkId = outLinkId;
+            this.outLinkMapId = outLinkMapId;
+            this.crossType = crossType;
+            this.patternId = patternId;
+        }
+        
+        public int getOutLinkId() {
+            return outLinkId;
+        }
+        
+        public int getPatternId() {
+            return patternId;
+        }
+        
+        @Override
+        public String toString() {
+            return String.format("LinkData{outLinkId=%d, outLinkMapId=%d, crossType=%d, patternId=%d}",
+                    outLinkId, outLinkMapId, crossType, patternId);
+        }
+    }
+    
+    /**
+     * OUT_LINK_ID와 PATTERN_ID를 비교하여 순서 결정
+     * OUT_LINK_ID == PATTERN_ID 인 경우 후순위로 정렬
+     */
+    public static class LinkOrderComparator implements Comparator<LinkData> {
+        @Override
+        public int compare(LinkData o1, LinkData o2) {
+            boolean o1Match = (o1.getOutLinkId() == o1.getPatternId());
+            boolean o2Match = (o2.getOutLinkId() == o2.getPatternId());
+            
+            // 둘 다 일치하거나 둘 다 불일치하면 outLinkId로 정렬
+            if (o1Match == o2Match) {
+                return Integer.compare(o1.getOutLinkId(), o2.getOutLinkId());
+            }
+            
+            // o1만 일치하면 o1을 후순위로 (1 반환)
+            // o2만 일치하면 o2를 후순위로 (-1 반환)
+            return o1Match ? 1 : -1;
+        }
+    }
+    
+    /**
+     * 리스트 정렬 메서드
+     */
+    public static List<LinkData> sortByLinkOrder(List<LinkData> linkDataList) {
+        List<LinkData> sortedList = new ArrayList<>(linkDataList);
+        sortedList.sort(new LinkOrderComparator());
+        return sortedList;
+    }
+    
+    // 테스트용 메인 메서드
+    public static void main(String[] args) {
+        List<LinkData> linkDataList = new ArrayList<>();
+        
+        // 이미지의 데이터를 기반으로 테스트 데이터 생성
+        linkDataList.add(new LinkData(44628, 57170000, 16, 44628));  // 일치 -> 후순위
+        linkDataList.add(new LinkData(71625, 57170000, 16, 44628));  // 불일치 -> 선순위
+        linkDataList.add(new LinkData(71625, 57170000, 16, 71626));  // 불일치 -> 선순위
+        linkDataList.add(new LinkData(71626, 57170000, 16, 71626));  // 일치 -> 후순위
+        
+        System.out.println("정렬 전:");
+        linkDataList.forEach(System.out::println);
+        
+        List<LinkData> sortedList = sortByLinkOrder(linkDataList);
+        
+        System.out.println("\n정렬 후 (OUT_LINK_ID == PATTERN_ID인 경우 후순위):");
+        sortedList.forEach(System.out::println);
+    }
+}
